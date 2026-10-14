@@ -1,0 +1,202 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  SALES_REP
+  VIEWER
+}
+
+enum LeadPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DealStatus {
+  OPEN
+  WON_PAID
+  LOST
+  NURTURE
+}
+
+enum SubscriptionTier {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Organization {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  currency        String         @default("MYR")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  memberships     Membership[]
+  leads           Lead[]
+  activities      Activity[]
+  targets         Target[]
+  subscription    Subscription?
+  apiKeys         ApiKey[]
+  leadCaptureForm LeadCaptureForm?
+
+  @@index([slug])
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String?
+  avatarUrl       String?
+  phone           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  memberships     Membership[]
+  assignedLeads   Lead[]         @relation("AssignedLeads")
+  loggedActivities Activity[]    @relation("UserActivities")
+}
+
+model Membership {
+  id              String         @id @default(cuid())
+  role            Role           @default(SALES_REP)
+  organizationId  String
+  userId          String
+  createdAt       DateTime       @default(now())
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Lead {
+  id              String         @id @default(cuid())
+  organizationId  String
+  assignedToId    String?
+  company         String
+  contact         String?
+  industry        String
+  city            String?
+  phone           String?
+  email           String?
+  website         String?
+  source          String         @default("Google Maps")
+  stage           String         @default("New Lead")
+  priority        LeadPriority   @default(MEDIUM)
+  score           Int            @default(5)
+  mrr             Decimal        @default(0.0) @db.Decimal(10, 2)
+  lastContact     DateTime?
+  nextAction      String         @default("First outreach")
+  dueDate         DateTime?
+  closeDate       DateTime?
+  pain            String?
+  dealStatus      DealStatus     @default(OPEN)
+  notes           String?        @db.Text
+  lossReason      String?
+  wonDate         DateTime?
+  onboarded       Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo      User?          @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activities      Activity[]
+
+  @@index([organizationId, stage])
+  @@index([organizationId, dueDate])
+  @@index([organizationId, dealStatus])
+}
+
+model Activity {
+  id              String         @id @default(cuid())
+  organizationId  String
+  leadId          String
+  userId          String?
+  type            String
+  notes           String         @db.Text
+  nextAction      String?
+  createdAt       DateTime       @default(now())
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead            Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user            User?          @relation("UserActivities", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, leadId])
+  @@index([organizationId, createdAt])
+}
+
+model Target {
+  id              String         @id @default(cuid())
+  organizationId  String
+  period          String         // "daily" or "weekly"
+  prospects       Int            @default(10)
+  outreach        Int            @default(10)
+  followups       Int            @default(3)
+  positive        Int            @default(2)
+  meetings        Int            @default(1)
+  demos           Int            @default(1)
+  paid            Int            @default(0)
+  updatedAt       DateTime       @updatedAt
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, period])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organizationId       String             @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd     DateTime?
+  leadQuotaLimit       Int                @default(50)
+  userQuotaLimit       Int                @default(1)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id              String         @id @default(cuid())
+  organizationId  String
+  name            String
+  keyHash         String         @unique
+  lastUsedAt      DateTime?
+  createdAt       DateTime       @default(now())
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model LeadCaptureForm {
+  id              String         @id @default(cuid())
+  organizationId  String         @unique
+  title           String         @default("Contact Our Sales Team")
+  defaultIndustry String         @default("Retail / shop")
+  defaultSource   String         @default("Website Inbound")
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
