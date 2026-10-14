@@ -141,16 +141,18 @@ export function TextAreaField({
 
 // A tick box with its words beside it. The whole row is the tap target.
 export function CheckboxField({
+  id,
   label,
   checked,
   onChange,
 }: {
+  id?: string;
   label: ReactNode;
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink">
+    <label id={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink">
       <Checkbox
         checked={checked}
         onCheckedChange={(v) => onChange(v === true)}
