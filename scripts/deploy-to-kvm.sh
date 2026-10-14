@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ssh infinita-kvm "bash -se" <<'EOF'
-  if [ ! -d /opt/sales-dashboard/.git ]; then
-    git clone --branch main https://github.com/Huzaifa-314/sales-dashboard.git /opt/sales-dashboard
-  fi
+REMOTE_HOST="infinita-kvm"
+REMOTE_DIR="/opt/sales-dashboard"
+LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+ssh "$REMOTE_HOST" "mkdir -p '$REMOTE_DIR'"
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude '.next' \
+  --exclude 'node_modules' \
+  --exclude '.env*' \
+  --exclude '*.log' \
+  --exclude '*.tsbuildinfo' \
+  "$LOCAL_DIR/" "$REMOTE_HOST:$REMOTE_DIR/"
+
+ssh "$REMOTE_HOST" "bash -se" <<'EOF'
   cd /opt/sales-dashboard
-  git pull --ff-only origin main
   docker compose up --build --detach --wait
 EOF

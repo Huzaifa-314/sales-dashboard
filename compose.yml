@@ -11,7 +11,9 @@ services:
     expose:
       - "3000"
     networks:
-      - n8n
+      n8n:
+        aliases:
+          - sales-dashboard
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/login', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
