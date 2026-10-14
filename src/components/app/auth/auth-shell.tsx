@@ -3,10 +3,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
-  BookCheck,
   Check,
-  FileCheck2,
+  Kanban,
   MessageSquareText,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { Wordmark } from "@/components/app/logo";
@@ -21,9 +21,9 @@ export function AuthShell({ children }: { children: ReactNode }) {
   const t = useT();
   const [lang, setLang] = useLang();
   const pillars = [
-    { icon: MessageSquareText, title: t("auth.p1t"), body: t("auth.p1b") },
-    { icon: BookCheck, title: t("auth.p2t"), body: t("auth.p2b") },
-    { icon: FileCheck2, title: t("auth.p3t"), body: t("auth.p3b") },
+    { icon: Sparkles, title: t("auth.p1t"), body: t("auth.p1b") },
+    { icon: Kanban, title: t("auth.p2t"), body: t("auth.p2b") },
+    { icon: ShieldCheck, title: t("auth.p3t"), body: t("auth.p3b") },
   ];
   return (
     <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">

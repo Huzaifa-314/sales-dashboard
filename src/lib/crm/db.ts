@@ -607,6 +607,20 @@ export class CrmDatabase {
       role: "ADMIN",
     });
 
+    const sysAdmin = this.createUser({
+      id: "usr_sales_admin_master",
+      email: "admin@salesdashboard.my",
+      name: "Workspace Administrator",
+      phone: "+60120001122",
+    });
+    this.setPassword(sysAdmin.id, "Admin@2026!");
+
+    this.createMembership({
+      organizationId: org.id,
+      userId: sysAdmin.id,
+      role: "OWNER",
+    });
+
     this.upsertSubscription({
       organizationId: org.id,
       tier: "GROWTH",

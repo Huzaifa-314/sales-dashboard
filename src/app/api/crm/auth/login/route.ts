@@ -38,40 +38,27 @@ export async function POST(req: Request) {
     let user = crmDb.findUserByEmail(email);
 
     if (!user) {
-      // In demo/cloud environment, if a new reviewer logs in, auto-provision their account with sales workspace
-      const name = email
-        .split("@")[0]
-        .replace(/[._-]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+      return NextResponse.json(
+        { error: "Incorrect email or password. Please try again." },
+        { status: 401 },
+      );
+    }
 
-      user = crmDb.createUser({
-        email,
-        name: name || "Sales Executive",
-      });
-      crmDb.setPassword(user.id, password);
-
-      crmDb.createMembership({
+    const isValid = crmDb.verifyPassword(user.id, password);
+    if (!isValid) {
+      crmDb.createAuditLog({
         organizationId: "org_default_sales",
         userId: user.id,
-        role: "SALES_REP",
+        action: "USER_LOGIN_FAILED",
+        entityType: "User",
+        entityId: user.id,
+        details: { email, reason: "Incorrect credentials", ip },
       });
-    } else {
-      const isValid = crmDb.verifyPassword(user.id, password);
-      if (!isValid) {
-        crmDb.createAuditLog({
-          organizationId: "org_default_sales",
-          userId: user.id,
-          action: "USER_LOGIN_FAILED",
-          entityType: "User",
-          entityId: user.id,
-          details: { email, reason: "Incorrect credentials", ip },
-        });
 
-        return NextResponse.json(
-          { error: "Incorrect email or password. Please try again." },
-          { status: 401 },
-        );
-      }
+      return NextResponse.json(
+        { error: "Incorrect email or password. Please try again." },
+        { status: 401 },
+      );
     }
 
     // Resolve membership & organization

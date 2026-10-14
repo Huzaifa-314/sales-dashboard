@@ -16,34 +16,6 @@ import { mockLogin, mockSendEmail } from "@/lib/auth-mock";
 
 const IDS = { email: "login-email", password: "login-password" } as const;
 
-interface DemoPersona {
-  role: string;
-  name: string;
-  email: string;
-  pass: string;
-}
-
-const DEMO_PERSONAS: DemoPersona[] = [
-  {
-    role: "Founder",
-    name: "Lead Director",
-    email: "founder@salesdashboard.my",
-    pass: "password123",
-  },
-  {
-    role: "Sales Rep",
-    name: "Sarah Lim",
-    email: "sarah@salesdashboard.my",
-    pass: "password123",
-  },
-  {
-    role: "Admin",
-    name: "Alex Tan",
-    email: "alex@salesdashboard.my",
-    pass: "password123",
-  },
-];
-
 export function LoginForm() {
   const t = useT();
   const router = useRouter();
@@ -63,11 +35,6 @@ export function LoginForm() {
       ? t(errors[k] as MessageKey)
       : undefined;
   const touch = (k: string) => setTouched((s) => new Set(s).add(k));
-
-  function selectPersona(persona: DemoPersona) {
-    setValues({ email: persona.email, password: persona.pass });
-    setProblem(null);
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,40 +66,6 @@ export function LoginForm() {
   return (
     <AuthShell>
       <AuthHeading title={t("auth.loginTitle")} sub={t("auth.loginSub")} />
-
-      {/* Quick Demo Persona Switcher */}
-      <div className="mt-4 rounded-control border border-line bg-surface-2 p-2">
-        <div className="mb-1.5 flex items-center justify-between px-1">
-          <span className="text-micro font-medium uppercase tracking-wider text-ink-faint">
-            Quick Persona Fill
-          </span>
-          <span className="text-micro font-medium text-brass">1-Click</span>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {DEMO_PERSONAS.map((p) => {
-            const isSelected = values.email === p.email;
-            return (
-              <button
-                key={p.email}
-                type="button"
-                onClick={() => selectPersona(p)}
-                className={`flex flex-col items-center justify-center rounded p-2 text-center transition-all ${
-                  isSelected
-                    ? "border border-line bg-surface font-semibold text-ink shadow-xs"
-                    : "text-ink-soft hover:bg-surface/50 hover:text-ink"
-                }`}
-              >
-                <span className="w-full truncate text-caption font-medium">
-                  {p.role}
-                </span>
-                <span className="w-full truncate text-micro text-ink-faint">
-                  {p.name.split(" ")[0]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {params.get("verified") && !problem && (
         <AuthNotice tone="success">{t("auth.verifiedNotice")}</AuthNotice>

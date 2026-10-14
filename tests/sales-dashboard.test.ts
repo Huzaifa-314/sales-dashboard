@@ -819,4 +819,64 @@ test("Phase 7.6: Rate limiting blocks brute-force login attempts", async () => {
   assert.equal(lastStatus, 429);
 });
 
+test("Phase 7.7: Master Admin credentials authenticate as OWNER with full workspace access", async () => {
+  const { POST: loginHandler } = await import("../src/app/api/crm/auth/login/route.ts");
+
+  const req = new Request("http://localhost:3000/api/crm/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "admin@salesdashboard.my",
+      password: "Admin@2026!",
+    }),
+  });
+
+  const res = await loginHandler(req);
+  assert.equal(res.status, 200);
+
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.user.email, "admin@salesdashboard.my");
+  assert.equal(data.role, "OWNER");
+  assert.equal(data.user.name, "Workspace Administrator");
+});
+
+test("Phase 7.8: New user registration via signup endpoint and immediate login", async () => {
+  const { POST: signupHandler } = await import("../src/app/api/crm/auth/signup/route.ts");
+  const { POST: loginHandler } = await import("../src/app/api/crm/auth/login/route.ts");
+
+  const signupReq = new Request("http://localhost:3000/api/crm/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: "Tengku Faiz",
+      email: "faiz@kerabat.my",
+      password: "SecurePass2026!",
+      whatsapp: "019-876 5432",
+    }),
+  });
+
+  const signupRes = await signupHandler(signupReq);
+  assert.equal(signupRes.status, 200);
+  const signupData = await signupRes.json();
+  assert.equal(signupData.success, true);
+
+  // Now login with newly registered user
+  const loginReq = new Request("http://localhost:3000/api/crm/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "faiz@kerabat.my",
+      password: "SecurePass2026!",
+    }),
+  });
+
+  const loginRes = await loginHandler(loginReq);
+  assert.equal(loginRes.status, 200);
+  const loginData = await loginRes.json();
+  assert.equal(loginData.user.name, "Tengku Faiz");
+  assert.equal(loginData.role, "SALES_REP");
+});
+
+
 

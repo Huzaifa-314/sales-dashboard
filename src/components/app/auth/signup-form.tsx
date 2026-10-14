@@ -92,7 +92,12 @@ export function SignupForm() {
       return;
     }
     setLoading(true);
-    const result = await mockSignup(values.email.trim());
+    const result = await mockSignup({
+      name: values.name.trim(),
+      email: values.email.trim(),
+      password: values.password,
+      whatsapp: values.whatsapp.trim(),
+    });
     setLoading(false);
     if (result === "exists") {
       setExists(true);

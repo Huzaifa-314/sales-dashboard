@@ -1,5 +1,4 @@
-// A stand-in and bridge for the account service, so the login and sign-up pages can be
-// tested with every outcome and seamlessly authenticate with the real CRM backend.
+// Client-side authentication bridge connecting UI forms directly to the CRM API backend.
 
 export type LoginResult = "ok" | "invalid" | "unverified";
 
@@ -31,25 +30,44 @@ export async function mockLogin(
 
     return "invalid";
   } catch {
-    // Client-side fallback for test environments
+    // Client-side fallback for isolated test environments
     if (email.toLowerCase().includes("unverified")) return "unverified";
-    if (password === "wrongpass1") return "invalid";
-    return "ok";
+    return "invalid";
   }
 }
 
 export type SignupResult = "ok" | "exists";
 
-export async function mockSignup(email: string): Promise<SignupResult> {
-  await new Promise((r) => setTimeout(r, 600));
-  return email.toLowerCase().includes("taken") ? "exists" : "ok";
+export async function mockSignup(
+  valuesOrEmail: string | { name: string; email: string; password: string; whatsapp: string },
+): Promise<SignupResult> {
+  if (typeof valuesOrEmail === "string") {
+    const email = valuesOrEmail.trim().toLowerCase();
+    if (email.includes("taken")) return "exists";
+    return "ok";
+  }
+
+  try {
+    const res = await fetch("/api/crm/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(valuesOrEmail),
+    });
+
+    if (res.status === 409) return "exists";
+    if (!res.ok) return "exists";
+    return "ok";
+  } catch {
+    if (valuesOrEmail.email.toLowerCase().includes("taken")) return "exists";
+    return "ok";
+  }
 }
 
 export async function mockSendEmail(): Promise<void> {
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 400));
 }
 
 export async function mockResetPassword(): Promise<"ok"> {
-  await new Promise((r) => setTimeout(r, 600));
+  await new Promise((r) => setTimeout(r, 400));
   return "ok";
 }
