@@ -2,6 +2,7 @@ import { NextResponse } from "next/server.js";
 import { crmDb } from "../../../../../lib/crm/db.ts";
 import { sanitizeText } from "../../../../../lib/crm/validation.ts";
 import { normaliseMyMobile } from "../../../../../lib/auth-rules.ts";
+import crypto from "node:crypto";
 
 export async function POST(req: Request) {
   try {
@@ -38,7 +39,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create user in CRM database
+    const organization = crmDb.createOrganization({
+      name: `${name}'s Workspace`,
+      slug: `workspace-${crypto.randomUUID().slice(0, 12)}`,
+    });
+
+    // Create user in their own workspace
     const user = crmDb.createUser({
       email,
       name,
@@ -46,15 +52,14 @@ export async function POST(req: Request) {
     });
     crmDb.setPassword(user.id, rawPassword);
 
-    // Assign to sales workspace as SALES_REP
     crmDb.createMembership({
-      organizationId: "org_default_sales",
+      organizationId: organization.id,
       userId: user.id,
-      role: "SALES_REP",
+      role: "OWNER",
     });
 
     crmDb.createAuditLog({
-      organizationId: "org_default_sales",
+      organizationId: organization.id,
       userId: user.id,
       action: "USER_REGISTERED",
       entityType: "User",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server.js";
 import { crmDb } from "../../../../../lib/crm/db.ts";
 import { checkRateLimit } from "../../../../../lib/crm/rate-limit.ts";
 import { sanitizeText } from "../../../../../lib/crm/validation.ts";
+import { createSession } from "../../../../../lib/crm/session.ts";
 
 export async function POST(req: Request) {
   try {
@@ -44,7 +45,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const isValid = crmDb.verifyPassword(user.id, password);
+    const demoUserIds = new Set([
+      "usr_sales_owner",
+      "usr_sales_rep",
+      "usr_sales_admin",
+      "usr_sales_admin_master",
+    ]);
+    const isValid = process.env.NODE_ENV === "production" && demoUserIds.has(user.id)
+      ? Boolean(process.env.SALES_DEMO_PASSWORD) && password === process.env.SALES_DEMO_PASSWORD
+      : crmDb.verifyPassword(user.id, password);
     if (!isValid) {
       crmDb.createAuditLog({
         organizationId: "org_default_sales",
@@ -95,6 +104,7 @@ export async function POST(req: Request) {
     const cookieOpts = "Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"; // 30 days
     const clientOpts = "Path=/; SameSite=Lax; Max-Age=2592000";
 
+    res.headers.append("Set-Cookie", `crm_session=${createSession(user.id, orgId)}; ${cookieOpts}; Secure`);
     res.headers.append("Set-Cookie", `crm_user_id=${encodeURIComponent(user.id)}; ${cookieOpts}`);
     res.headers.append("Set-Cookie", `crm_org_id=${encodeURIComponent(orgId)}; ${cookieOpts}`);
     res.headers.append("Set-Cookie", `crm_user_email=${encodeURIComponent(user.email)}; ${clientOpts}`);

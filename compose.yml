@@ -3,6 +3,8 @@ name: sales-dashboard
 services:
   app:
     build: .
+    env_file:
+      - .env.production
     restart: unless-stopped
     init: true
     environment:

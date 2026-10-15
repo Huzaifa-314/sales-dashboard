@@ -1,5 +1,6 @@
 import { crmDb } from "./db.ts";
 import { assertPermission } from "./rbac.ts";
+import { readSession } from "./session.ts";
 import {
   CRM_PLANS,
   type Role,
@@ -27,64 +28,14 @@ export interface TenantContext {
 }
 
 export async function getTenantContext(req?: Request): Promise<TenantContext> {
-  let orgId = "org_default_sales";
-  let userId = "usr_sales_owner";
+  const session = req ? readSession(req) : null;
+  if (!session) throw new Error("Unauthenticated");
 
-  if (req) {
-    const headerOrg = req.headers.get("x-organization-id");
-    const headerUser = req.headers.get("x-user-id");
-    if (headerOrg) orgId = headerOrg;
-    if (headerUser) userId = headerUser;
-
-    const cookieHeader = req.headers.get("cookie");
-    if (cookieHeader) {
-      const pairs = cookieHeader.split(";").map((p) => p.trim());
-      for (const pair of pairs) {
-        const [k, ...v] = pair.split("=");
-        const key = k?.trim();
-        const val = decodeURIComponent(v.join("="));
-        if (key === "crm_user_id" && val) userId = val;
-        if (key === "crm_org_id" && val) orgId = val;
-      }
-    }
-  }
-
-  let org = crmDb.getOrganization(orgId);
-  if (!org) {
-    org = crmDb.createOrganization({
-      id: orgId,
-      name: "Sales Enterprise HQ",
-      slug: orgId,
-    });
-  }
-
-  let user = crmDb.getUser(userId);
-  if (!user) {
-    user = crmDb.createUser({
-      id: userId,
-      email: `${userId}@salesdashboard.my`,
-      name: "Lead Sales Manager",
-    });
-  }
-
-  let membership = crmDb.getMembership(org.id, user.id);
-  if (!membership) {
-    membership = crmDb.createMembership({
-      organizationId: org.id,
-      userId: user.id,
-      role: "OWNER",
-    });
-  }
-
-  let sub = crmDb.getSubscription(org.id);
-  if (!sub) {
-    sub = crmDb.upsertSubscription({
-      organizationId: org.id,
-      tier: "FREE",
-      leadQuotaLimit: 50,
-      userQuotaLimit: 1,
-    });
-  }
+  const org = crmDb.getOrganization(session.organizationId);
+  const user = crmDb.getUser(session.userId);
+  const membership = crmDb.getMembership(session.organizationId, session.userId);
+  const sub = crmDb.getSubscription(session.organizationId);
+  if (!org || !user || !membership || !sub) throw new Error("Unauthenticated");
 
   return {
     userId: user.id,

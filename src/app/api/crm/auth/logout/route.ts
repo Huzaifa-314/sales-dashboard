@@ -24,6 +24,7 @@ export async function POST(req: Request) {
 
     res.headers.append("Set-Cookie", `crm_user_id=; ${httpExpire}`);
     res.headers.append("Set-Cookie", `crm_org_id=; ${httpExpire}`);
+    res.headers.append("Set-Cookie", `crm_session=; ${httpExpire}; Secure`);
     res.headers.append("Set-Cookie", `crm_user_email=; ${expire}`);
     res.headers.append("Set-Cookie", `crm_user_name=; ${expire}`);
     res.headers.append("Set-Cookie", `crm_user_role=; ${expire}`);
