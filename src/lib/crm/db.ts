@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { CrmPersistence, type RecordKind } from "./persistence.ts";
 import type {
   Organization,
   User,
@@ -44,9 +45,29 @@ export class CrmDatabase {
   private apiKeys: Map<string, ApiKey> = new Map();
   private auditLogs: Map<string, AuditLog> = new Map();
   private passwords: Map<string, string> = new Map();
+  private readonly persistence: CrmPersistence | null;
 
   constructor() {
-    this.seedDefaultData();
+    this.persistence = process.env.CRM_DB_PATH ? new CrmPersistence(process.env.CRM_DB_PATH) : null;
+    if (this.persistence?.hasData()) {
+      this.organizations = this.persistence.load("organizations");
+      this.users = this.persistence.load("users");
+      this.memberships = this.persistence.load("memberships");
+      this.leads = this.persistence.load("leads");
+      this.activities = this.persistence.load("activities");
+      this.targets = this.persistence.load("targets");
+      this.subscriptions = this.persistence.load("subscriptions");
+      this.apiKeys = this.persistence.load("apiKeys");
+      this.auditLogs = this.persistence.load("auditLogs");
+      this.passwords = this.persistence.load("passwords");
+    } else {
+      this.persistence?.transaction(() => this.seedDefaultData());
+      if (!this.persistence) this.seedDefaultData();
+    }
+  }
+
+  private save(kind: RecordKind, key: string, value: unknown): void {
+    this.persistence?.put(kind, key, value);
   }
 
   // --- Organizations ---
@@ -65,10 +86,8 @@ export class CrmDatabase {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    this.organizations.set(id, org);
-
-    if (!this.subscriptions.has(id)) {
-      this.subscriptions.set(id, {
+    const subscription: Subscription | undefined = !this.subscriptions.has(id)
+      ? {
         id: `sub_${id}`,
         organizationId: id,
         tier: "FREE",
@@ -77,8 +96,13 @@ export class CrmDatabase {
         userQuotaLimit: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
-    }
+      } : undefined;
+    this.persistence?.transaction(() => {
+      this.save("organizations", id, org);
+      if (subscription) this.save("subscriptions", id, subscription);
+    });
+    this.organizations.set(id, org);
+    if (subscription) this.subscriptions.set(id, subscription);
 
     return org;
   }
@@ -112,6 +136,7 @@ export class CrmDatabase {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    this.save("users", id, user);
     this.users.set(id, user);
     return user;
   }
@@ -129,6 +154,7 @@ export class CrmDatabase {
 
   public setPassword(userId: string, password: string): void {
     const hash = crypto.createHash("sha256").update(password).digest("hex");
+    this.save("passwords", userId, hash);
     this.passwords.set(userId, hash);
   }
 
@@ -163,6 +189,7 @@ export class CrmDatabase {
       role: data.role,
       createdAt: new Date(),
     };
+    this.save("memberships", key, membership);
     this.memberships.set(key, membership);
     return membership;
   }
@@ -186,6 +213,8 @@ export class CrmDatabase {
 
   public deleteMembership(organizationId: string, userId: string): boolean {
     const key = `${organizationId}:${userId}`;
+    if (!this.memberships.has(key)) return false;
+    this.persistence?.delete("memberships", key);
     return this.memberships.delete(key);
   }
 
@@ -241,6 +270,7 @@ export class CrmDatabase {
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
+    this.save("subscriptions", data.organizationId, sub);
     this.subscriptions.set(data.organizationId, sub);
     return sub;
   }
@@ -291,6 +321,7 @@ export class CrmDatabase {
       updatedAt: now,
     };
 
+    this.save("leads", id, lead);
     this.leads.set(id, lead);
     return lead;
   }
@@ -337,6 +368,7 @@ export class CrmDatabase {
       updatedAt: now,
     };
 
+    this.save("leads", id, updated);
     this.leads.set(id, updated);
     return updated;
   }
@@ -344,13 +376,15 @@ export class CrmDatabase {
   public deleteLead(organizationId: string, id: string): boolean {
     const lead = this.leads.get(id);
     if (!lead || lead.organizationId !== organizationId) return false;
+    const activityIds = Array.from(this.activities.values())
+      .filter((act) => act.leadId === id && act.organizationId === organizationId)
+      .map((act) => act.id);
+    this.persistence?.transaction(() => {
+      this.persistence?.delete("leads", id);
+      for (const activityId of activityIds) this.persistence?.delete("activities", activityId);
+    });
     this.leads.delete(id);
-
-    for (const [actId, act] of this.activities.entries()) {
-      if (act.leadId === id && act.organizationId === organizationId) {
-        this.activities.delete(actId);
-      }
-    }
+    for (const activityId of activityIds) this.activities.delete(activityId);
     return true;
   }
 
@@ -413,16 +447,18 @@ export class CrmDatabase {
       nextAction: input.nextAction || null,
       createdAt: now,
     };
-    this.activities.set(id, activity);
-
     const lead = this.leads.get(input.leadId);
+    let updatedLead: Lead | undefined;
     if (lead && lead.organizationId === input.organizationId) {
-      lead.lastContact = now;
-      if (input.nextAction) {
-        lead.nextAction = input.nextAction;
-      }
-      lead.updatedAt = now;
+      updatedLead = { ...lead, lastContact: now, updatedAt: now };
+      if (input.nextAction) updatedLead.nextAction = input.nextAction;
     }
+    this.persistence?.transaction(() => {
+      this.save("activities", id, activity);
+      if (updatedLead) this.save("leads", updatedLead.id, updatedLead);
+    });
+    this.activities.set(id, activity);
+    if (updatedLead && lead) Object.assign(lead, updatedLead);
 
     return activity;
   }
@@ -470,6 +506,7 @@ export class CrmDatabase {
       paid: period === "daily" ? 0 : 2,
       updatedAt: new Date(),
     };
+    this.save("targets", key, defaultTarget);
     this.targets.set(key, defaultTarget);
     return defaultTarget;
   }
@@ -485,6 +522,7 @@ export class CrmDatabase {
       ...data,
       updatedAt: new Date(),
     };
+    this.save("targets", `${organizationId}:${period}`, updated);
     this.targets.set(`${organizationId}:${period}`, updated);
     return updated;
   }
@@ -504,6 +542,7 @@ export class CrmDatabase {
       createdAt: new Date(),
     };
 
+    this.save("apiKeys", id, apiKey);
     this.apiKeys.set(id, apiKey);
     return { apiKey, rawKey };
   }
@@ -521,7 +560,9 @@ export class CrmDatabase {
   public recordApiKeyUsage(id: string): void {
     const key = this.apiKeys.get(id);
     if (key) {
-      key.lastUsedAt = new Date();
+      const updated = { ...key, lastUsedAt: new Date() };
+      this.save("apiKeys", id, updated);
+      this.apiKeys.set(id, updated);
     }
   }
 
@@ -545,6 +586,7 @@ export class CrmDatabase {
       details: data.details,
       createdAt: new Date(),
     };
+    this.save("auditLogs", id, log);
     this.auditLogs.set(id, log);
     return log;
   }
@@ -701,6 +743,17 @@ export class CrmDatabase {
   }
 
   public reset() {
+    this.persistence?.transaction(() => {
+      this.persistence?.clear();
+      this.clearMaps();
+      this.seedDefaultData();
+    });
+    if (this.persistence) return;
+    this.clearMaps();
+    this.seedDefaultData();
+  }
+
+  private clearMaps() {
     this.organizations.clear();
     this.users.clear();
     this.memberships.clear();
@@ -710,7 +763,7 @@ export class CrmDatabase {
     this.subscriptions.clear();
     this.apiKeys.clear();
     this.auditLogs.clear();
-    this.seedDefaultData();
+    this.passwords.clear();
   }
 }
 

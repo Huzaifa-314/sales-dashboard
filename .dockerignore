@@ -5,6 +5,8 @@ node_modules
 !.env.example
 *.log
 *.tsbuildinfo
+*.sqlite
+*.sqlite-*
 coverage
 dist
 build

@@ -10,6 +10,9 @@ services:
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
+      CRM_DB_PATH: /data/crm.sqlite
+    volumes:
+      - crm_data:/data
     expose:
       - "3000"
     networks:
@@ -17,7 +20,7 @@ services:
         aliases:
           - sales-dashboard
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/login', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/crm/auth/me', r => process.exit(r.statusCode === 401 && require('fs').existsSync('/data/crm.sqlite') ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 30s
@@ -27,3 +30,6 @@ networks:
   n8n:
     external: true
     name: n8n_default
+
+volumes:
+  crm_data:
